@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"path"
 	"strconv"
 	"time"
+"log"
 )
 
 type Venue string
@@ -17,10 +17,6 @@ type Venue string
 func (v Venue) String() string {
 	return string(v)
 }
-
-const (
-	VenueTESTEX Venue = "TESTEX"
-)
 
 type Symbol string
 
@@ -50,15 +46,17 @@ func (s *starTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func New(apiKey string) *sfclient {
 	return &sfclient{
-		baseURL: "https://api.stockfighter.io/ob/api/",
+		baseURL:   "https://api.stockfighter.io/ob/api/",
+		baseWSURL: "wss://api.stockfighter.io/ob/api/ws/",
 		client: &http.Client{
 			Transport: &starTransport{apiKey: apiKey, RoundTripper: http.DefaultTransport},
 		}}
 }
 
 type sfclient struct {
-	baseURL string
-	client  *http.Client
+	baseURL   string
+	baseWSURL string
+	client    *http.Client
 }
 
 func unmarshalResp(body io.Reader, reply interface{}) error {
@@ -201,19 +199,29 @@ type orderRequest struct {
 
 type OrderResponse struct {
 	APIResponse
-	Symbol           Symbol    `json:"symbol"`
-	Venue            Venue     `json:"venue"`
-	Direction        string    `json:"direction"`
-	OriginalQuantity int64     `json:"originalQty"`
-	Quantity         int64     `json:"qty"`
-	Price            int64     `json:"price"`
-	OrderType        string    `json:"orderType"`
-	ID               int64     `json:"id"`
-	Account          string    `json:"account"`
-	Timestamp        time.Time `json:"ts"`
-	Fills            []AskBid  `json:"fills"`
-	TotalFilled      int64     `json:"totalFilled"`
-	Open             bool      `json:"open"`
+	Symbol           Symbol `json:"symbol"`
+	Venue            Venue  `json:"venue"`
+	Direction        string `json:"direction"`
+	OriginalQuantity int64  `json:"originalQty"`
+
+	// This is the quantity *left outstanding*
+	Quantity int64 `json:"qty"`
+
+	// The price on the order -- may not match that of fills!
+	Price     int64  `json:"price"`
+	OrderType string `json:"orderType"`
+
+	// Guaranteed unique *on this venue*
+	ID      int64  `json:"id"`
+	Account string `json:"account"`
+
+	// ISO-8601 timestamp for when the order was received
+	Timestamp time.Time `json:"ts"`
+
+	// Zero, or multiple fills
+	Fills       []AskBid `json:"fills"`
+	TotalFilled int64    `json:"totalFilled"`
+	Open        bool     `json:"open"`
 }
 
 func (c *sfclient) postOrder(req *orderRequest) (*OrderResponse, error) {
@@ -226,7 +234,13 @@ func (c *sfclient) postOrder(req *orderRequest) (*OrderResponse, error) {
 	return or, nil
 }
 
-func (c *sfclient) BuyOrder(account string, venue Venue, stock Symbol, price int64, quantity int64, orderType OrderType) (*OrderResponse, error) {
+func (c *sfclient) BuyOrder(
+	account string,
+	venue Venue,
+	stock Symbol,
+	price int64,
+	quantity int64,
+	orderType OrderType) (*OrderResponse, error) {
 	req := &orderRequest{
 		Account:   account,
 		Venue:     venue,
@@ -240,7 +254,13 @@ func (c *sfclient) BuyOrder(account string, venue Venue, stock Symbol, price int
 	return c.postOrder(req)
 }
 
-func (c *sfclient) SellOrder(account string, venue Venue, stock Symbol, price int64, quantity int64, orderType OrderType) (*OrderResponse, error) {
+func (c *sfclient) SellOrder(
+	account string,
+	venue Venue,
+	stock Symbol,
+	price int64,
+	quantity int64,
+	orderType OrderType) (*OrderResponse, error) {
 	req := &orderRequest{
 		Account:   account,
 		Venue:     venue,
@@ -254,19 +274,44 @@ func (c *sfclient) SellOrder(account string, venue Venue, stock Symbol, price in
 	return c.postOrder(req)
 }
 
+type StockState struct {
+	Symbol Symbol `json:"symbol"`
+	Venue  Venue  `json:"venue"`
+
+	// Best price currently bid for the stock
+	Bid int64 `json:"bid"`
+
+	// Best price currently offered for the stock
+	Ask int64 `json:"ask"`
+
+	// Aggregate size of all orders at the best bid
+	BidSize int64 `json:"bidSize"`
+
+	// Aggregate size of all orders at the best ask
+	AskSize int64 `json:"askSize"`
+
+	// Aggregate size of *all bids*
+	BidDepth int64 `json:"bidDepth"`
+
+	// Aggregate size of *all asks*
+	AskDepth int64 `json:"askDepth"`
+
+	// Price of the last trade
+	Last int64 `json:"last"`
+
+	// Quantity of the last trade
+	LastSize int64 `json:"lastSize"`
+
+	// Timestamp of the last trade
+	LastTrade time.Time `json:"lastTrade"`
+
+	// The server side timestamp the quote was last updated
+	QuoteTime time.Time `json:"quoteTime"`
+}
+
 type QuoteResponse struct {
 	APIResponse
-	Symbol    Symbol    `json:"symbol"`
-	Venue     Venue     `json:"venue"`
-	Bid       int64     `json:"bid"`
-	Ask       int64     `json:"ask"`
-	BidSize   int64     `json:"bidSize"`
-	BidDepth  int64     `json:"bidDepth"`
-	AskDepth  int64     `json:"askSize"`
-	Last      int64     `json:"last"`
-	LastSize  int64     `json:"lastSize"`
-	LastTrade time.Time `json:"lastTrade"`
-	QuoteTime time.Time `json:"quoteTime"`
+	StockState
 }
 
 func (c *sfclient) Quote(venue Venue, stock Symbol) (*QuoteResponse, error) {
@@ -279,21 +324,27 @@ func (c *sfclient) Quote(venue Venue, stock Symbol) (*QuoteResponse, error) {
 	return qr, nil
 }
 
+type OrderState struct {
+	Symbol           Symbol `json:"symbol"`
+	Venue            Venue  `json:"venue"`
+	Direction        string `json:"direction"`
+	OriginalQuantity int64  `json:"originialQty"`
+
+	// If this is a response to a cancel order, this will always be 0
+	Quantity    int64     `json:"qty"`
+	Price       int64     `json:"price"`
+	OrderType   OrderType `json:"orderType"`
+	ID          int64     `json:"id"`
+	Account     string    `json:"account"`
+	Timestamp   time.Time `json:"ts"`
+	Fills       []AskBid  `json:"fills"`
+	TotalFilled int64     `json:"totalFilled"`
+	Open        bool      `json:"open"`
+}
+
 type StatusResponse struct {
 	APIResponse
-	Symbol           Symbol    `json:"symbol"`
-	Venue            Venue     `json:"venue"`
-	Direction        string    `json:"direction"`
-	OriginalQuantity int64     `json:"originialQty"`
-	Quantity         int64     `json:"qty"`
-	Price            int64     `json:"price"`
-	OrderType        OrderType `json:"orderType"`
-	ID               int64     `json:"id"`
-	Account          string    `json:"account"`
-	Timestamp        time.Time `json:"ts"`
-	Fills            []AskBid  `json:"fills"`
-	TotalFilled      int64     `json:"totalFilled"`
-	Open             bool      `json:"open"`
+	OrderState
 }
 
 func (c *sfclient) OrderStatus(venue Venue, stock Symbol, id int64) (*StatusResponse, error) {
@@ -320,7 +371,7 @@ func (c *sfclient) CancelOrder(venue Venue, stock Symbol, id int64) (*CancelOrde
 
 type MultiStatusResponse struct {
 	APIResponse
-	Orders []StatusResponse `json:"orders"`
+	Orders []OrderState `json:"orders"`
 }
 
 func (c *sfclient) VenueOrdersStatus(account string, venue Venue) (*MultiStatusResponse, error) {
@@ -341,4 +392,3 @@ func (c *sfclient) StockOrdersStatus(account string, venue Venue, stock Symbol) 
 	}
 	return mr, nil
 }
-
