@@ -1,6 +1,7 @@
 package sfclient
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -11,9 +12,7 @@ const (
 )
 
 func TestConnectVenueTicker(t *testing.T) {
-	t.Skip()
-	c := New("")
-	ticker, err := c.VenueFills(testAccount, testVenue)
+	ticker, err := c.VenueTicker(testAccount, testVenue)
 	if err != nil {
 		t.Errorf("error creating venue ticker: %v", err)
 		return
@@ -27,6 +26,16 @@ func TestConnectVenueTicker(t *testing.T) {
 		return
 	}
 
+	// Ensure there are at least 5 orders on to get
+	for i := 0; i < 5; i++ {
+		price := int64(i) + 1
+		br, err := c.BuyOrder(testAccount, testVenue, testSymbol, price, 10, TypeMarket)
+		if err = checkerr(br.APIResponse, err); err != nil {
+			fmt.Println("error placing buy order: %v", err)
+			return
+		}
+	}
+
 	for i := 0; i < 5; i++ {
 		msg := <-listener
 		if !msg.OK {
@@ -34,6 +43,6 @@ func TestConnectVenueTicker(t *testing.T) {
 			return
 		}
 
-		t.Logf("got message for symbol: %s", msg.Symbol)
+		t.Logf("got message for symbol: %s", msg.Quote.Symbol)
 	}
 }

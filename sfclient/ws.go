@@ -20,9 +20,7 @@ type TickListener struct {
 }
 
 func (t *TickListener) Listen() (<-chan *TickMessage, error) {
-	log.Println("connecting to", t.url.String())
 	c, _, err := websocket.DefaultDialer.Dial(t.url.String(), nil)
-	log.Println("connected to", t.url.String())
 	if err != nil {
 		return nil, err
 	}
@@ -38,9 +36,7 @@ func (t *TickListener) Listen() (<-chan *TickMessage, error) {
 				return
 			default:
 				msg := &TickMessage{}
-				log.Println("trying to read msg")
 				err := c.ReadJSON(msg)
-				log.Println("got msg with err", err)
 				if err != nil {
 					// Probably a connection error. Attempt reconnect
 					log.Printf("websocket read err: %v", err)
@@ -74,7 +70,7 @@ func (c *sfclient) VenueTicker(account string, venue Venue) (*TickListener, erro
 
 	return &TickListener{
 		url:      u,
-		close:    make(chan struct{}),
+		close:    make(chan struct{}, 1), // Ensure buffered so close won't block
 		messages: make(chan *TickMessage, 100),
 	}, nil
 }
@@ -87,7 +83,7 @@ func (c *sfclient) StockTicker(account string, venue Venue, stock Symbol) (*Tick
 
 	return &TickListener{
 		url:      u,
-		close:    make(chan struct{}),
+		close:    make(chan struct{}, 1), // Ensure buffered so close won't block
 		messages: make(chan *TickMessage, 100),
 	}, nil
 }
@@ -170,7 +166,7 @@ func (c *sfclient) VenueFills(account string, venue Venue) (*FillListener, error
 
 	return &FillListener{
 		url:      u,
-		close:    make(chan struct{}),
+		close:    make(chan struct{}, 1), // Ensure buffered so cannot block
 		messages: make(chan *FillMessage, 100),
 	}, nil
 }
@@ -183,7 +179,7 @@ func (c *sfclient) StockFills(account string, venue Venue, stock Symbol) (*FillL
 
 	return &FillListener{
 		url:      u,
-		close:    make(chan struct{}),
+		close:    make(chan struct{}, 1), // Ensure buffered so cannot block
 		messages: make(chan *FillMessage, 100),
 	}, nil
 }

@@ -9,7 +9,7 @@ import (
 
 var (
 	apiKey = flag.String("apikey", "", "specify your API key")
-	c *sfclient
+	c      *sfclient
 )
 
 func init() {
@@ -107,11 +107,11 @@ func TestSellOrder(t *testing.T) {
 	t.Logf("sell order response: %+v", sr)
 }
 
-func TestCancelOrder(t *testing.T) {
-	// First specify a sell at a huge price so should be able to cancel
-	const nstocks = 10
-	const price = 1000000
+// First specify a sell at a huge price so should be able to cancel
+const nstocks = 10
+const price = 1000000
 
+func TestCancelOrder(t *testing.T) {
 	sr, err := c.SellOrder(testAccount, testVenue, testSymbol, price, nstocks, TypeLimit)
 	if err = checkerr(sr.APIResponse, err); err != nil {
 		t.Errorf("error placing sell order: %v", err)
@@ -124,12 +124,56 @@ func TestCancelOrder(t *testing.T) {
 	}
 
 	cr, err := c.CancelOrder(testVenue, testSymbol, sr.ID)
-	if err != nil {
-		t.Errorf("error cancelling order: %v", err)
-	}
 
 	if cr.Quantity != 0 {
 		t.Errorf("stocks not cancelled, still got a qty: %d", cr.Quantity)
 		return
 	}
+
+	t.Logf("cancel order response: %+v", cr)
+}
+
+func testOrderStatus(t *testing.T, apiFunc func() (*MultiStatusResponse, error)) {
+	// execute a sell order and then gets the status of the venue
+	sr, err := c.SellOrder(testAccount, testVenue, testSymbol, price, nstocks, TypeLimit)
+	if err = checkerr(sr.APIResponse, err); err != nil {
+		t.Errorf("error placing sell order: %v", err)
+		return
+	}
+
+	if !sr.Open {
+		t.Error("stocks got sold, whoops")
+		return
+	}
+
+	vr, err := apiFunc()
+	if err = checkerr(vr.APIResponse, err); err != nil {
+		t.Errorf("error getting order status: %v", err)
+		return
+	}
+
+	var hasOrder bool
+	for _, order := range vr.Orders {
+		if sr.ID == order.ID {
+			hasOrder = true
+		}
+	}
+
+	if !hasOrder {
+		t.Errorf("did not get sell order in venue order status")
+	}
+
+	t.Logf("venue order status: %+v", vr)
+}
+
+func TestVenueOrdersStatus(t *testing.T) {
+	testOrderStatus(t, func() (*MultiStatusResponse, error) {
+		return c.VenueOrdersStatus(testAccount, testVenue)
+	})
+}
+
+func TestStockOrdersStatus(t *testing.T) {
+	testOrderStatus(t, func() (*MultiStatusResponse, error) {
+		return c.StockOrdersStatus(testAccount, testVenue, testSymbol)
+	})
 }

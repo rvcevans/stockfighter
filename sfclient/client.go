@@ -9,7 +9,6 @@ import (
 	"path"
 	"strconv"
 	"time"
-"log"
 )
 
 type Venue string
@@ -40,7 +39,6 @@ type starTransport struct {
 
 func (s *starTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	r.Header.Set("X-Starfighter-Authorization", s.apiKey)
-	log.Printf("%s %s", r.Method, r.URL)
 	return s.RoundTripper.RoundTrip(r)
 }
 
@@ -96,7 +94,7 @@ func (c *sfclient) postJSON(endpoint string, payload interface{}, reply interfac
 }
 
 func (c *sfclient) del(endpoint string, reply interface{}) error {
-	req, err := http.NewRequest("DELETE", endpoint, nil)
+	req, err := http.NewRequest("DELETE", c.baseURL+endpoint, nil)
 	if err != nil {
 		return err
 	}
