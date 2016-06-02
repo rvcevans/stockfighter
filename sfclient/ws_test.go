@@ -28,7 +28,7 @@ func TestConnectVenueTicker(t *testing.T) {
 
 	// Ensure there are at least 5 orders on to get
 	for i := 0; i < 5; i++ {
-		price := int64(i) + 1
+		price := i + 1
 		br, err := c.BuyOrder(testAccount, testVenue, testSymbol, price, 10, TypeMarket)
 		if err = checkerr(br.APIResponse, err); err != nil {
 			fmt.Println("error placing buy order: %v", err)

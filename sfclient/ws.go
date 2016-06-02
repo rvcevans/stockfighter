@@ -62,7 +62,7 @@ func (t *TickListener) Close() {
 	t.close <- struct{}{}
 }
 
-func (c *sfclient) VenueTicker(account string, venue Venue) (*TickListener, error) {
+func (c *Client) VenueTicker(account string, venue Venue) (*TickListener, error) {
 	u, err := url.Parse(c.baseWSURL + path.Join(account, "venues", venue.String(), "tickertape"))
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (c *sfclient) VenueTicker(account string, venue Venue) (*TickListener, erro
 	}, nil
 }
 
-func (c *sfclient) StockTicker(account string, venue Venue, stock Symbol) (*TickListener, error) {
+func (c *Client) StockTicker(account string, venue Venue, stock Symbol) (*TickListener, error) {
 	u, err := url.Parse(c.baseWSURL + path.Join(account, "venues", venue.String(), "tickertape", "stocks", stock.String()))
 	if err != nil {
 		return nil, err
@@ -96,10 +96,10 @@ type FillMessage struct {
 	Venue      Venue         `json:"venue"`
 	Symbol     Symbol        `json:"symbol"`
 	Order      OrderResponse `json:"order"`
-	StandingID int64         `json:"standingId"`
-	IncomingID int64         `json:"incomingId"`
-	Price      int64         `json:"price"`
-	Filled     int64         `json:"filled"`
+	StandingID int           `json:"standingId"`
+	IncomingID int           `json:"incomingId"`
+	Price      int           `json:"price"`
+	Filled     int           `json:"filled"`
 	FilledAt   time.Time     `json:"filledAt"`
 
 	// Whether the order that was on the book is now complete
@@ -158,7 +158,7 @@ func (t *FillListener) Close() {
 	t.close <- struct{}{}
 }
 
-func (c *sfclient) VenueFills(account string, venue Venue) (*FillListener, error) {
+func (c *Client) VenueFills(account string, venue Venue) (*FillListener, error) {
 	u, err := url.Parse(c.baseWSURL + path.Join(account, "venues", venue.String(), "executions"))
 	if err != nil {
 		return nil, err
@@ -171,7 +171,7 @@ func (c *sfclient) VenueFills(account string, venue Venue) (*FillListener, error
 	}, nil
 }
 
-func (c *sfclient) StockFills(account string, venue Venue, stock Symbol) (*FillListener, error) {
+func (c *Client) StockFills(account string, venue Venue, stock Symbol) (*FillListener, error) {
 	u, err := url.Parse(c.baseWSURL + path.Join(account, "venues", venue.String(), "executions", "stocks", stock.String()))
 	if err != nil {
 		return nil, err

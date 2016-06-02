@@ -9,7 +9,7 @@ import (
 
 var (
 	apiKey = flag.String("apikey", "", "specify your API key")
-	c      *sfclient
+	c      *Client
 )
 
 func init() {

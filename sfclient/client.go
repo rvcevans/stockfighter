@@ -42,8 +42,8 @@ func (s *starTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return s.RoundTripper.RoundTrip(r)
 }
 
-func New(apiKey string) *sfclient {
-	return &sfclient{
+func New(apiKey string) *Client {
+	return &Client{
 		baseURL:   "https://api.stockfighter.io/ob/api/",
 		baseWSURL: "wss://api.stockfighter.io/ob/api/ws/",
 		client: &http.Client{
@@ -51,7 +51,7 @@ func New(apiKey string) *sfclient {
 		}}
 }
 
-type sfclient struct {
+type Client struct {
 	baseURL   string
 	baseWSURL string
 	client    *http.Client
@@ -68,7 +68,7 @@ func unmarshalResp(body io.Reader, reply interface{}) error {
 	return nil
 }
 
-func (c *sfclient) get(endpoint string, reply interface{}) error {
+func (c *Client) get(endpoint string, reply interface{}) error {
 	resp, err := c.client.Get(c.baseURL + endpoint)
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func (c *sfclient) get(endpoint string, reply interface{}) error {
 	return unmarshalResp(resp.Body, reply)
 }
 
-func (c *sfclient) postJSON(endpoint string, payload interface{}, reply interface{}) error {
+func (c *Client) postJSON(endpoint string, payload interface{}, reply interface{}) error {
 	b, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -93,7 +93,7 @@ func (c *sfclient) postJSON(endpoint string, payload interface{}, reply interfac
 	return unmarshalResp(resp.Body, reply)
 }
 
-func (c *sfclient) del(endpoint string, reply interface{}) error {
+func (c *Client) del(endpoint string, reply interface{}) error {
 	req, err := http.NewRequest("DELETE", c.baseURL+endpoint, nil)
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ type HeartbeatResponse struct {
 	APIResponse
 }
 
-func (c *sfclient) Heartbeat() (*HeartbeatResponse, error) {
+func (c *Client) Heartbeat() (*HeartbeatResponse, error) {
 	hr := &HeartbeatResponse{}
 	err := c.get("heartbeat", hr)
 	if err != nil {
@@ -131,7 +131,7 @@ type VenueHeartbeatResponse struct {
 	Venue Venue `json:"venue"`
 }
 
-func (c *sfclient) VenueHeartbeat(v Venue) (*VenueHeartbeatResponse, error) {
+func (c *Client) VenueHeartbeat(v Venue) (*VenueHeartbeatResponse, error) {
 	vhr := &VenueHeartbeatResponse{}
 	err := c.get(path.Join("venues", v.String(), "heartbeat"), vhr)
 	if err != nil {
@@ -149,7 +149,7 @@ type VenueStocksResponse struct {
 	} `json:"symbols"`
 }
 
-func (c *sfclient) VenueStocks(v Venue) (*VenueStocksResponse, error) {
+func (c *Client) VenueStocks(v Venue) (*VenueStocksResponse, error) {
 	vsr := &VenueStocksResponse{}
 	err := c.get(path.Join("venues", v.String(), "stocks"), vsr)
 
@@ -161,9 +161,9 @@ func (c *sfclient) VenueStocks(v Venue) (*VenueStocksResponse, error) {
 }
 
 type AskBid struct {
-	Price    int64 `json:"price"`
-	Quantity int64 `json:"qty"`
-	IsBuy    bool  `json:"isBuy"`
+	Price    int  `json:"price"`
+	Quantity int  `json:"qty"`
+	IsBuy    bool `json:"isBuy"`
 }
 
 type StockOrderBookResponse struct {
@@ -175,7 +175,7 @@ type StockOrderBookResponse struct {
 	Timestamp time.Time `json:"ts"`
 }
 
-func (c *sfclient) StockOrderBook(v Venue, s Symbol) (*StockOrderBookResponse, error) {
+func (c *Client) StockOrderBook(v Venue, s Symbol) (*StockOrderBookResponse, error) {
 	sor := &StockOrderBookResponse{}
 	err := c.get(path.Join("venues", v.String(), "stocks", s.String()), sor)
 	if err != nil {
@@ -189,8 +189,8 @@ type orderRequest struct {
 	Account   string    `json:"account"`
 	Venue     Venue     `json:"venue"`
 	Stock     Symbol    `json:"stock"`
-	Price     int64     `json:"price"`
-	Quantity  int64     `json:"qty"`
+	Price     int       `json:"price"`
+	Quantity  int       `json:"qty"`
 	Direction string    `json:"direction"`
 	OrderType OrderType `json:"orderType"`
 }
@@ -200,17 +200,17 @@ type OrderResponse struct {
 	Symbol           Symbol `json:"symbol"`
 	Venue            Venue  `json:"venue"`
 	Direction        string `json:"direction"`
-	OriginalQuantity int64  `json:"originalQty"`
+	OriginalQuantity int    `json:"originalQty"`
 
 	// This is the quantity *left outstanding*
-	Quantity int64 `json:"qty"`
+	Quantity int `json:"qty"`
 
 	// The price on the order -- may not match that of fills!
-	Price     int64  `json:"price"`
+	Price     int    `json:"price"`
 	OrderType string `json:"orderType"`
 
 	// Guaranteed unique *on this venue*
-	ID      int64  `json:"id"`
+	ID      int    `json:"id"`
 	Account string `json:"account"`
 
 	// ISO-8601 timestamp for when the order was received
@@ -218,11 +218,11 @@ type OrderResponse struct {
 
 	// Zero, or multiple fills
 	Fills       []AskBid `json:"fills"`
-	TotalFilled int64    `json:"totalFilled"`
+	TotalFilled int      `json:"totalFilled"`
 	Open        bool     `json:"open"`
 }
 
-func (c *sfclient) postOrder(req *orderRequest) (*OrderResponse, error) {
+func (c *Client) postOrder(req *orderRequest) (*OrderResponse, error) {
 	or := &OrderResponse{}
 	err := c.postJSON(path.Join("venues", req.Venue.String(), "stocks", req.Stock.String(), "orders"), req, or)
 	if err != nil {
@@ -232,12 +232,12 @@ func (c *sfclient) postOrder(req *orderRequest) (*OrderResponse, error) {
 	return or, nil
 }
 
-func (c *sfclient) BuyOrder(
+func (c *Client) BuyOrder(
 	account string,
 	venue Venue,
 	stock Symbol,
-	price int64,
-	quantity int64,
+	price int,
+	quantity int,
 	orderType OrderType) (*OrderResponse, error) {
 	req := &orderRequest{
 		Account:   account,
@@ -252,12 +252,12 @@ func (c *sfclient) BuyOrder(
 	return c.postOrder(req)
 }
 
-func (c *sfclient) SellOrder(
+func (c *Client) SellOrder(
 	account string,
 	venue Venue,
 	stock Symbol,
-	price int64,
-	quantity int64,
+	price int,
+	quantity int,
 	orderType OrderType) (*OrderResponse, error) {
 	req := &orderRequest{
 		Account:   account,
@@ -277,28 +277,28 @@ type StockState struct {
 	Venue  Venue  `json:"venue"`
 
 	// Best price currently bid for the stock
-	Bid int64 `json:"bid"`
+	Bid int `json:"bid"`
 
 	// Best price currently offered for the stock
-	Ask int64 `json:"ask"`
+	Ask int `json:"ask"`
 
 	// Aggregate size of all orders at the best bid
-	BidSize int64 `json:"bidSize"`
+	BidSize int `json:"bidSize"`
 
 	// Aggregate size of all orders at the best ask
-	AskSize int64 `json:"askSize"`
+	AskSize int `json:"askSize"`
 
 	// Aggregate size of *all bids*
-	BidDepth int64 `json:"bidDepth"`
+	BidDepth int `json:"bidDepth"`
 
 	// Aggregate size of *all asks*
-	AskDepth int64 `json:"askDepth"`
+	AskDepth int `json:"askDepth"`
 
 	// Price of the last trade
-	Last int64 `json:"last"`
+	Last int `json:"last"`
 
 	// Quantity of the last trade
-	LastSize int64 `json:"lastSize"`
+	LastSize int `json:"lastSize"`
 
 	// Timestamp of the last trade
 	LastTrade time.Time `json:"lastTrade"`
@@ -312,7 +312,7 @@ type QuoteResponse struct {
 	StockState
 }
 
-func (c *sfclient) Quote(venue Venue, stock Symbol) (*QuoteResponse, error) {
+func (c *Client) Quote(venue Venue, stock Symbol) (*QuoteResponse, error) {
 	qr := &QuoteResponse{}
 	err := c.get(path.Join("venues", venue.String(), "stocks", stock.String(), "quote"), qr)
 	if err != nil {
@@ -326,17 +326,17 @@ type OrderState struct {
 	Symbol           Symbol `json:"symbol"`
 	Venue            Venue  `json:"venue"`
 	Direction        string `json:"direction"`
-	OriginalQuantity int64  `json:"originialQty"`
+	OriginalQuantity int    `json:"originialQty"`
 
 	// If this is a response to a cancel order, this will always be 0
-	Quantity    int64     `json:"qty"`
-	Price       int64     `json:"price"`
+	Quantity    int       `json:"qty"`
+	Price       int       `json:"price"`
 	OrderType   OrderType `json:"orderType"`
-	ID          int64     `json:"id"`
+	ID          int       `json:"id"`
 	Account     string    `json:"account"`
 	Timestamp   time.Time `json:"ts"`
 	Fills       []AskBid  `json:"fills"`
-	TotalFilled int64     `json:"totalFilled"`
+	TotalFilled int       `json:"totalFilled"`
 	Open        bool      `json:"open"`
 }
 
@@ -345,9 +345,9 @@ type StatusResponse struct {
 	OrderState
 }
 
-func (c *sfclient) OrderStatus(venue Venue, stock Symbol, id int64) (*StatusResponse, error) {
+func (c *Client) OrderStatus(venue Venue, stock Symbol, id int) (*StatusResponse, error) {
 	sr := &StatusResponse{}
-	err := c.get(path.Join("venues", venue.String(), "stocks", stock.String(), "orders", strconv.FormatInt(id, 10)), sr)
+	err := c.get(path.Join("venues", venue.String(), "stocks", stock.String(), "orders", strconv.Itoa(id)), sr)
 	if err != nil {
 		return nil, err
 	}
@@ -357,9 +357,9 @@ func (c *sfclient) OrderStatus(venue Venue, stock Symbol, id int64) (*StatusResp
 
 type CancelOrderResponse StatusResponse
 
-func (c *sfclient) CancelOrder(venue Venue, stock Symbol, id int64) (*CancelOrderResponse, error) {
+func (c *Client) CancelOrder(venue Venue, stock Symbol, id int) (*CancelOrderResponse, error) {
 	cor := &CancelOrderResponse{}
-	err := c.del(path.Join("venues", venue.String(), "stocks", stock.String(), "orders", strconv.FormatInt(id, 10)), cor)
+	err := c.del(path.Join("venues", venue.String(), "stocks", stock.String(), "orders", strconv.Itoa(id)), cor)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +372,7 @@ type MultiStatusResponse struct {
 	Orders []OrderState `json:"orders"`
 }
 
-func (c *sfclient) VenueOrdersStatus(account string, venue Venue) (*MultiStatusResponse, error) {
+func (c *Client) VenueOrdersStatus(account string, venue Venue) (*MultiStatusResponse, error) {
 	vr := &MultiStatusResponse{}
 	err := c.get(path.Join("venues", venue.String(), "accounts", account, "orders"), vr)
 	if err != nil {
@@ -382,7 +382,7 @@ func (c *sfclient) VenueOrdersStatus(account string, venue Venue) (*MultiStatusR
 	return vr, nil
 }
 
-func (c *sfclient) StockOrdersStatus(account string, venue Venue, stock Symbol) (*MultiStatusResponse, error) {
+func (c *Client) StockOrdersStatus(account string, venue Venue, stock Symbol) (*MultiStatusResponse, error) {
 	mr := &MultiStatusResponse{}
 	err := c.get(path.Join("venues", venue.String(), "accounts", account, "stocks", stock.String(), "orders"), mr)
 	if err != nil {
