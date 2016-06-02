@@ -9,6 +9,7 @@ import (
 	"path"
 	"strconv"
 	"time"
+	"errors"
 )
 
 type Venue string
@@ -57,7 +58,7 @@ type Client struct {
 	client    *http.Client
 }
 
-func unmarshalResp(body io.Reader, reply interface{}) error {
+func unmarshalResp(body io.Reader, reply maybeErr) error {
 	bodyBytes, err := ioutil.ReadAll(body)
 
 	err = json.Unmarshal(bodyBytes, reply)
@@ -68,7 +69,7 @@ func unmarshalResp(body io.Reader, reply interface{}) error {
 	return nil
 }
 
-func (c *Client) get(endpoint string, reply interface{}) error {
+func (c *Client) get(endpoint string, reply maybeErr) error {
 	resp, err := c.client.Get(c.baseURL + endpoint)
 	if err != nil {
 		return err
@@ -76,10 +77,11 @@ func (c *Client) get(endpoint string, reply interface{}) error {
 
 	defer resp.Body.Close()
 
-	return unmarshalResp(resp.Body, reply)
+	err = unmarshalResp(resp.Body, reply)
+	return coalesceErr( err, reply)
 }
 
-func (c *Client) postJSON(endpoint string, payload interface{}, reply interface{}) error {
+func (c *Client) postJSON(endpoint string, payload interface{}, reply maybeErr) error {
 	b, err := json.Marshal(payload)
 	if err != nil {
 		return err
@@ -93,7 +95,7 @@ func (c *Client) postJSON(endpoint string, payload interface{}, reply interface{
 	return unmarshalResp(resp.Body, reply)
 }
 
-func (c *Client) del(endpoint string, reply interface{}) error {
+func (c *Client) del(endpoint string, reply maybeErr) error {
 	req, err := http.NewRequest("DELETE", c.baseURL+endpoint, nil)
 	if err != nil {
 		return err
@@ -107,9 +109,33 @@ func (c *Client) del(endpoint string, reply interface{}) error {
 	return unmarshalResp(resp.Body, reply)
 }
 
+type maybeErr interface {
+	Err() error
+}
+
+func coalesceErr(err error, reply maybeErr) error {
+	if err != nil {
+		return err
+	}
+
+	return reply.Err()
+}
+
 type APIResponse struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error"`
+}
+
+func (a *APIResponse) Err() error {
+	if a == nil {
+		return nil
+	}
+
+	if !a.OK {
+		return errors.New(a.Error)
+	}
+
+	return nil
 }
 
 type HeartbeatResponse struct {

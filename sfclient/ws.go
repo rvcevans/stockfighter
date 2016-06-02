@@ -37,6 +37,7 @@ func (t *TickListener) Listen() (<-chan *TickMessage, error) {
 			default:
 				msg := &TickMessage{}
 				err := c.ReadJSON(msg)
+				err = coalesceErr(err, msg)
 				if err != nil {
 					// Probably a connection error. Attempt reconnect
 					log.Printf("websocket read err: %v", err)
@@ -133,6 +134,7 @@ func (t *FillListener) Listen() (<-chan *FillMessage, error) {
 			default:
 				msg := &FillMessage{}
 				err := c.ReadJSON(msg)
+				err = coalesceErr(err, msg)
 				if err != nil {
 					// Probably a connection error. Attempt reconnect
 					log.Printf("websocket read err: %v", err)
