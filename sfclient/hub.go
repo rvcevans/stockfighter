@@ -148,6 +148,7 @@ func (h *StockHub) startSendFills() {
 	}
 }
 
+
 type elem struct {
 	ask     int
 	askSize int
@@ -215,6 +216,9 @@ func (h *BidAskHistory) Avg(x int) (ask, bid int) {
 	var totalAsk int
 	var totalBid int
 	h.mu.Lock()
+	if x > h.i {
+		x = h.i
+	}
 	curr := h.i % h.n
 	for j := 0; j < x; j++ {
 		e := h.elems[((curr+h.n)-j)%h.n]

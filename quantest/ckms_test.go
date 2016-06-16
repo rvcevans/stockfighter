@@ -31,8 +31,8 @@ func TestCKMS(t *testing.T) {
 
 	for _, quantile := range quantiles {
 		estimate := estimator.Query(quantile.q)
-		actual := samples[int(windowSize*quantile.q)]
-		err := math.Abs(float64(estimate-actual)) / windowSize
+		actual := samples[int(windowSize*quantile.q)-1]
+		err := math.Abs(float64(estimate-actual)) / float64(actual)
 		t.Logf("%s: estimate=%d, actual=%d, off=%.3f. memory saving=%.2f", quantile, estimate, actual, err, float64(estimator.len())/windowSize)
 		if err > quantile.errFrac {
 			t.Errorf("error in quantile estimation too large: max %.3f, got %.3f", quantile.errFrac, err)

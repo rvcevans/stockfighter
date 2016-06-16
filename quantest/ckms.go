@@ -13,12 +13,12 @@ import (
  *    keep the error at an appropriate level.
  */
 
-const bufSize = 5
+const bufSize = 1024
 
 type CKMS struct {
 	count       int
 	compressIdx int
-	sample
+	nodeList
 	buf       [bufSize]int
 	bufCount  int
 	quantiles []Quantile
@@ -32,7 +32,7 @@ func (c *CKMS) allowableError(rank int) float64 {
 	// NOTE: according to CKMS, this should be count, not size, but this leads
 	// to error larger than the error bounds. Leaving it like this is
 	// essentially a HACK, and blows up memory, but does "work".
-	// size := c.count;
+	//size := c.count;
 
 	size := c.len()
 	minError := float64(size + 1)
@@ -149,7 +149,10 @@ func (c *CKMS) Query(quantile float64) int {
 		curr = c.next()
 
 		rankMin += prev.g
-		if float64(rankMin+curr.g+curr.delta) > desired+(c.allowableError(int(desired))/2) {
+		a := float64(rankMin+curr.g+curr.delta)
+		d := desired+(c.allowableError(int(desired))/2)
+
+		if a > d {
 			return prev.value
 		}
 	}
